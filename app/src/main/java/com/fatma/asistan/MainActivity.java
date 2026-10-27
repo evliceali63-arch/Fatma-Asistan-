@@ -49,6 +49,8 @@ public class MainActivity extends Activity {
     private String lastDestination = "";
     private float speechRate = 0.95f;
     private float speechPitch = 1.0f;
+    private String femaleVoiceName = "";
+    private String maleVoiceName = "";
     private int batteryThreshold = 20;
     private int batteryPercent = -1;
     private int lastBatteryPercent = -1;
@@ -79,6 +81,8 @@ public class MainActivity extends Activity {
         speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
         speechPitch = getPreferences(MODE_PRIVATE).getFloat("speech_pitch", 1.0f);
         selectedVoiceName = getPreferences(MODE_PRIVATE).getString("selected_voice", "");
+        femaleVoiceName = getPreferences(MODE_PRIVATE).getString("female_voice", "");
+        maleVoiceName = getPreferences(MODE_PRIVATE).getString("male_voice", "");
         lastDestination = getPreferences(MODE_PRIVATE).getString("last_destination", "");
         batteryThreshold = getPreferences(MODE_PRIVATE).getInt("battery_threshold", 20);
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -97,9 +101,11 @@ public class MainActivity extends Activity {
     private void applyVoice() {
         if (!ttsReady) return;
         Voice selected = null;
-        if (!selectedVoiceName.isEmpty()) {
+        String preferredName = voicePreference.equals("Kadın") ? femaleVoiceName : maleVoiceName;
+        if (preferredName.isEmpty()) preferredName = selectedVoiceName;
+        if (!preferredName.isEmpty()) {
             for (Voice v : tts.getVoices() == null ? Collections.<Voice>emptySet() : tts.getVoices()) {
-                if (v.getName().equals(selectedVoiceName) && "tr".equals(v.getLocale().getLanguage())) { selected = v; break; }
+                if (v.getName().equals(preferredName) && "tr".equals(v.getLocale().getLanguage())) { selected = v; break; }
             }
         }
         if (selected == null) {
@@ -420,7 +426,12 @@ public class MainActivity extends Activity {
                 addCard((v.getName().equals(selectedVoiceName) ? "✓ " : "") + description,
                     "Bu sesi seç ve dene. Sesin kadın/erkek niteliği telefondaki ses motoruna bağlıdır.", () -> {
                         selectedVoiceName = v.getName();
-                        getPreferences(MODE_PRIVATE).edit().putString("selected_voice", selectedVoiceName).apply();
+                        if (voicePreference.equals("Kadın")) femaleVoiceName = selectedVoiceName;
+                        else maleVoiceName = selectedVoiceName;
+                        getPreferences(MODE_PRIVATE).edit().putString("selected_voice", selectedVoiceName)
+                            .putString(voicePreference.equals("Kadın") ? "female_voice" : "male_voice", selectedVoiceName).apply();
+                        speechPitch = 1.0f;
+                        getPreferences(MODE_PRIVATE).edit().putFloat("speech_pitch", speechPitch).apply();
                         applyVoice(); speak("Merhaba, ben " + assistantName + ". Bu benim sesim.");
                         Toast.makeText(this, "Ses seçildi: " + v.getName(), Toast.LENGTH_LONG).show();
                     });
@@ -489,8 +500,8 @@ public class MainActivity extends Activity {
             showHome();
         });
         content.addView(text("Ses tercihi (cihazdaki Türkçe seslere bağlı)", 17, Color.WHITE, true));
-        addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), "Kadın sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Kadın"); });
-        addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), "Erkek sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Erkek"); });
+        addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), femaleVoiceName.isEmpty() ? "Önce Türkçe sesler listesinden beğendiğin sesi seç." : "Kaydedilen ses: " + femaleVoiceName, () -> { setVoicePreference("Kadın"); });
+        addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), maleVoiceName.isEmpty() ? "Önce Türkçe sesler listesinden beğendiğin sesi seç." : "Kaydedilen ses: " + maleVoiceName, () -> { setVoicePreference("Erkek"); });
         addCard("🎤 Türkçe sesleri listele ve dene", "Telefondaki tüm Türkçe sesleri tek tek seç.", this::showVoicePicker);
         addCard("🔧 Telefonun ses motoru ayarları", "Türkçe ses paketlerini ve ses motorunu yönet.", () -> {
             try { startActivity(new Intent("com.android.settings.TTS_SETTINGS")); }
@@ -549,8 +560,10 @@ public class MainActivity extends Activity {
     }
     private void setVoicePreference(String preference) {
         voicePreference = preference;
-        selectedVoiceName = "";
-        getPreferences(MODE_PRIVATE).edit().putString("voice_preference", preference).remove("selected_voice").apply();
+        selectedVoiceName = preference.equals("Kadın") ? femaleVoiceName : maleVoiceName;
+        getPreferences(MODE_PRIVATE).edit().putString("voice_preference", preference).apply();
+        speechPitch = 1.0f;
+        getPreferences(MODE_PRIVATE).edit().putFloat("speech_pitch", speechPitch).apply();
         applyVoice();
         showSettings();
         speak("Merhaba, ben " + assistantName);
