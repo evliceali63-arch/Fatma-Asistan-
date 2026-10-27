@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private String selectedVoiceName = "";
     private String lastDestination = "";
     private float speechRate = 0.95f;
+    private float speechPitch = 1.0f;
     private int batteryThreshold = 20;
     private int batteryPercent = -1;
     private int lastBatteryPercent = -1;
@@ -76,6 +77,7 @@ public class MainActivity extends Activity {
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
         voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
         speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
+        speechPitch = getPreferences(MODE_PRIVATE).getFloat("speech_pitch", 1.0f);
         selectedVoiceName = getPreferences(MODE_PRIVATE).getString("selected_voice", "");
         lastDestination = getPreferences(MODE_PRIVATE).getString("last_destination", "");
         batteryThreshold = getPreferences(MODE_PRIVATE).getInt("battery_threshold", 20);
@@ -112,6 +114,7 @@ public class MainActivity extends Activity {
         }
         if (selected != null) tts.setVoice(selected);
         tts.setSpeechRate(speechRate);
+        tts.setPitch(speechPitch);
     }
     private void speak(String words) {
         if (ttsReady) tts.speak(words, TextToSpeech.QUEUE_FLUSH, null, "fatma_reply");
@@ -512,6 +515,27 @@ public class MainActivity extends Activity {
                 speak("Yeni konuşma hızım bu şekilde.");
             }
         });
+        content.addView(text("Ses perdesi (ince / kalın)", 17, Color.WHITE, true));
+        TextView pitchLabel = text("Ses perdesi: " + String.format(Locale.getDefault(), "%.2f", speechPitch) + "x", 15, ACCENT, false);
+        content.addView(pitchLabel);
+        SeekBar pitch = new SeekBar(this);
+        pitch.setMax(120);
+        pitch.setProgress(Math.round((speechPitch - 0.7f) * 100));
+        content.addView(pitch);
+        pitch.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                pitchLabel.setText("Ses perdesi: " + String.format(Locale.getDefault(), "%.2f", 0.7f + progress / 100f) + "x");
+            }
+            public void onStartTrackingTouch(SeekBar bar) {}
+            public void onStopTrackingTouch(SeekBar bar) {
+                speechPitch = 0.7f + bar.getProgress() / 100f;
+                getPreferences(MODE_PRIVATE).edit().putFloat("speech_pitch", speechPitch).apply();
+                if (ttsReady) tts.setPitch(speechPitch);
+                speak("Merhaba, ben " + assistantName + ". Sesimi şimdi deneyebilirsin.");
+            }
+        });
+        addCard("🔊 Seçili sesi dene", "Kaydedilen ses ve perde ayarıyla konuş.", () -> speak("Merhaba, ben " + assistantName + ". Yolculuğunda sana yardımcı olacağım."));
+        content.addView(text("Not: Ses perdesi sesi inceltir; gerçek bir kadın sesinin yerine geçmez.", 13, Color.LTGRAY, false));
         content.addView(text("Pil uyarı eşiği", 17, Color.WHITE, true));
         for (int threshold : new int[]{10, 20, 30}) {
             addCard("%" + threshold + (batteryThreshold == threshold ? " ✓" : ""), "Pil bu seviyeye düştüğünde sesli uyarı ver.", () -> {
