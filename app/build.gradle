@@ -6,7 +6,7 @@ android {
         applicationId 'com.fatma.asistan'
         minSdk 26
         targetSdk 35
-        versionCode 15
-        versionName '1.0.0-beta'
+        versionCode 16
+        versionName '1.0.1-core'
     }
 }
