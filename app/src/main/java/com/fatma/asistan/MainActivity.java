@@ -1,6 +1,11 @@
 package com.fatma.asistan;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
+import android.widget.SeekBar;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
@@ -27,6 +32,25 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private String voicePreference = "Kadın";
+    private float speechRate = 0.95f;
+    private int batteryThreshold = 20;
+    private int batteryPercent = -1;
+    private int lastBatteryPercent = -1;
+    private TextView batteryLabel;
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+            if (level < 0 || scale <= 0) return;
+            int percent = Math.round(100f * level / scale);
+            batteryPercent = percent;
+            if (batteryLabel != null) batteryLabel.setText("Telefon pili: %" + percent);
+            if (lastBatteryPercent > batteryThreshold && percent <= batteryThreshold) {
+                speak("Dikkat! Telefonunun şarjı yüzde " + percent + " seviyesine düştü.");
+            }
+            lastBatteryPercent = percent;
+        }
+    };
     private static final int SPEECH_REQUEST = 100;
     private static final int BG = Color.rgb(15, 19, 29);
     private static final int PANEL = Color.rgb(31, 39, 55);
@@ -36,6 +60,9 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
         voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
+        speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
+        batteryThreshold = getPreferences(MODE_PRIVATE).getInt("battery_threshold", 20);
+        registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         tts = new TextToSpeech(this, status -> {
             ttsReady = status == TextToSpeech.SUCCESS;
             if (ttsReady) {
@@ -60,7 +87,7 @@ public class MainActivity extends Activity {
             if (selected == null) selected = v;
         }
         if (selected != null) tts.setVoice(selected);
-        tts.setSpeechRate(0.95f);
+        tts.setSpeechRate(speechRate);
     }
     private void speak(String words) {
         if (ttsReady) tts.speak(words, TextToSpeech.QUEUE_FLUSH, null, "fatma_reply");
@@ -101,6 +128,7 @@ public class MainActivity extends Activity {
         }
     }
     @Override protected void onDestroy() {
+        unregisterReceiver(batteryReceiver);
         if (tts != null) { tts.stop(); tts.shutdown(); }
         super.onDestroy();
     }
@@ -145,6 +173,8 @@ public class MainActivity extends Activity {
         page("Merhaba!");
         content.addView(text("Ben " + assistantName + ".", 26, ACCENT, true));
         content.addView(text("Kişisel sürüş asistanın geliştirme aşamasında.", 16, Color.LTGRAY, false));
+        batteryLabel = text("Telefon pili: " + (batteryPercent < 0 ? "ölçülüyor" : "%" + batteryPercent), 18, ACCENT, true);
+        content.addView(batteryLabel);
         addCard("Asistan ayarları", "Asistanın ismini değiştir.", this::showSettings);
         addCard("Bluetooth", "Telefonun Bluetooth ayarlarını aç.", () -> {
             try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
@@ -154,7 +184,7 @@ public class MainActivity extends Activity {
         addCard("🔊 Sesimi dene", "Asistanın Türkçe konuşmasını dinle.", () -> speak("Merhaba, ben " + assistantName + ". Sana nasıl yardımcı olabilirim?"));
         addCard("Navigasyon ve sürüş", "Sonraki sürümde eklenecek.", this::comingSoon);
         addCard("Kaza algılama", "Henüz aktif değil; acil durum sistemi olarak kullanmayın.", this::comingSoon);
-        content.addView(text("Sürüm 0.2 - Sesli test uygulaması", 13, Color.GRAY, false));
+        content.addView(text("Sürüm 0.3 - Pil ve kişiselleştirme", 13, Color.GRAY, false));
     }
     private void comingSoon() { Toast.makeText(this, "Bu özellik henüz geliştirilmedi", Toast.LENGTH_SHORT).show(); }
     private void showSettings() {
@@ -182,6 +212,34 @@ public class MainActivity extends Activity {
         content.addView(text("Ses tercihi (cihazdaki Türkçe seslere bağlı)", 17, Color.WHITE, true));
         addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), "Kadın sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Kadın"); });
         addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), "Erkek sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Erkek"); });
+        content.addView(text("Konuşma hızı: " + String.format(Locale.getDefault(), "%.2f", speechRate) + "x", 17, Color.WHITE, true));
+        SeekBar speed = new SeekBar(this);
+        speed.setMax(150);
+        speed.setProgress(Math.round((speechRate - 0.5f) * 100));
+        TextView speedLabel = text("Hız: " + String.format(Locale.getDefault(), "%.2f", speechRate) + "x", 15, ACCENT, false);
+        content.addView(speedLabel);
+        content.addView(speed);
+        speed.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                speedLabel.setText("Hız: " + String.format(Locale.getDefault(), "%.2f", 0.5f + progress / 100f) + "x");
+            }
+            public void onStartTrackingTouch(SeekBar bar) {}
+            public void onStopTrackingTouch(SeekBar bar) {
+                speechRate = 0.5f + bar.getProgress() / 100f;
+                getPreferences(MODE_PRIVATE).edit().putFloat("speech_rate", speechRate).apply();
+                if (ttsReady) tts.setSpeechRate(speechRate);
+                speak("Yeni konuşma hızım bu şekilde.");
+            }
+        });
+        content.addView(text("Pil uyarı eşiği", 17, Color.WHITE, true));
+        for (int threshold : new int[]{10, 20, 30}) {
+            addCard("%" + threshold + (batteryThreshold == threshold ? " ✓" : ""), "Pil bu seviyeye düştüğünde sesli uyarı ver.", () -> {
+                batteryThreshold = threshold;
+                getPreferences(MODE_PRIVATE).edit().putInt("battery_threshold", threshold).apply();
+                showSettings();
+            });
+        }
+        content.addView(text("Pil uyarıları uygulama açıkken çalışır. Arka plan izleme sonraki sürümlerde geliştirilecek.", 13, Color.LTGRAY, false));
         addCard("Ana ekrana dön", "", this::showHome);
     }
     private void setVoicePreference(String preference) {
