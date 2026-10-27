@@ -124,13 +124,13 @@ public class MainActivity extends Activity {
                     String destination = phrase.replace("fatma", "").replace("zilli", "").replace("bana", "").replace("yol tarifi", "").replace("rota oluştur", "").replace("navigasyon başlat", "").replace("aç", "").replace("ver", "").trim();
                     if (destination.isEmpty()) { reply = "Hedef belirtmelisin. Örneğin Antalya'ya yol tarifi aç."; }
                     else { openDirections(destination); reply = destination + " için yol tarifi açıyorum."; }
-                } else if (phrase.contains("sonraki şarkı") || phrase.contains("şarkıyı geç")) {
+                } else if (phrase.contains("sonraki şarkı") || phrase.contains("şarkıyı geç") || phrase.contains("sonraki müzik")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); reply = "Sonraki şarkıya geçiyorum.";
-                } else if (phrase.contains("önceki şarkı")) {
+                } else if (phrase.contains("önceki şarkı") || phrase.contains("önceki müzik")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); reply = "Önceki şarkıya dönüyorum.";
-                } else if (phrase.contains("müziği durdur") || phrase.contains("müziği duraklat")) {
+                } else if (phrase.contains("müziği durdur") || phrase.contains("müziği duraklat") || phrase.contains("müzik durdur") || phrase.contains("müzik kapat")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE); reply = "Müziği duraklatıyorum.";
-                } else if (phrase.contains("müziği aç") || phrase.contains("müziği devam ettir")) {
+                } else if (phrase.contains("müziği aç") || phrase.contains("müziği devam ettir") || phrase.contains("müzik aç") || phrase.contains("müzik başlat") || phrase.contains("şarkı aç") || phrase.contains("şarkı çal")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY); reply = "Müziği devam ettiriyorum.";
                 } else if (phrase.contains("şarjım kaç") || phrase.contains("pilim kaç")) {
                     reply = batteryPercent < 0 ? "Pil seviyesini okuyamadım." : "Telefonunun şarjı yüzde " + batteryPercent + ".";
