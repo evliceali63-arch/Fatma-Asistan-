@@ -213,15 +213,24 @@ public class MainActivity extends Activity {
     private void launchMap(Uri uri) {
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, uri);
+            i.addCategory(Intent.CATEGORY_BROWSABLE);
             startActivity(i);
         } catch (Exception e) {
-            Toast.makeText(this, "Harita uygulaması bulunamadı", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Harita açılamadı: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
         }
     }
     private void openDirections(String destination) {
         String clean = destination.trim();
         if (clean.isEmpty()) return;
-        launchMap(Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(clean)));
+        // Android geo navigation intent first; Google Maps URL is a browser-compatible fallback.
+        Uri navigation = Uri.parse("google.navigation:q=" + Uri.encode(clean));
+        Intent direct = new Intent(Intent.ACTION_VIEW, navigation);
+        direct.setPackage("com.google.android.apps.maps");
+        try {
+            startActivity(direct);
+        } catch (Exception e) {
+            launchMap(Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(clean) + "&travelmode=driving"));
+        }
     }
     private void openMapSearch(String query) {
         launchMap(Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)));
@@ -245,7 +254,7 @@ public class MainActivity extends Activity {
         addCard("🧭 Yol tarifi başlat", "Seçilen hedef için harita uygulamasını aç.", () -> {
             String target = destination.getText().toString().trim();
             if (target.isEmpty()) destination.setError("Hedef yazmalısın");
-            else openDirections(target);
+            else { Toast.makeText(this, target + " için yol tarifi açılıyor", Toast.LENGTH_SHORT).show(); openDirections(target); }
         });
         addCard("⛽ Benzin istasyonları", "Haritada istasyon ara.", () -> openMapSearch("benzin istasyonu"));
         addCard("☕ Dinlenme tesisleri", "Haritada mola yeri ara.", () -> openMapSearch("dinlenme tesisi"));
