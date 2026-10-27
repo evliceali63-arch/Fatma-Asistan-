@@ -419,6 +419,7 @@ public class MainActivity extends Activity {
                         selectedVoiceName = v.getName();
                         getPreferences(MODE_PRIVATE).edit().putString("selected_voice", selectedVoiceName).apply();
                         applyVoice(); speak("Merhaba, ben " + assistantName + ". Bu benim sesim.");
+                        Toast.makeText(this, "Ses seçildi: " + v.getName(), Toast.LENGTH_LONG).show();
                     });
             }
         }
@@ -488,6 +489,10 @@ public class MainActivity extends Activity {
         addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), "Kadın sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Kadın"); });
         addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), "Erkek sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Erkek"); });
         addCard("🎤 Türkçe sesleri listele ve dene", "Telefondaki tüm Türkçe sesleri tek tek seç.", this::showVoicePicker);
+        addCard("🔧 Telefonun ses motoru ayarları", "Türkçe ses paketlerini ve ses motorunu yönet.", () -> {
+            try { startActivity(new Intent("com.android.settings.TTS_SETTINGS")); }
+            catch (Exception e) { try { startActivity(new Intent(Settings.ACTION_SETTINGS)); } catch (Exception ignored) { } }
+        });
         content.addView(text("Konuşma hızı: " + String.format(Locale.getDefault(), "%.2f", speechRate) + "x", 17, Color.WHITE, true));
         SeekBar speed = new SeekBar(this);
         speed.setMax(150);
@@ -520,7 +525,8 @@ public class MainActivity extends Activity {
     }
     private void setVoicePreference(String preference) {
         voicePreference = preference;
-        getPreferences(MODE_PRIVATE).edit().putString("voice_preference", preference).apply();
+        selectedVoiceName = "";
+        getPreferences(MODE_PRIVATE).edit().putString("voice_preference", preference).remove("selected_voice").apply();
         applyVoice();
         showSettings();
         speak("Merhaba, ben " + assistantName);
