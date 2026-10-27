@@ -150,6 +150,9 @@ public class MainActivity extends Activity {
                     openMapSearch("dinlenme tesisi"); reply = "Dinlenme tesislerini haritada arıyorum.";
                 } else if (phrase.contains("gezilecek yer") || phrase.contains("turistik yer")) {
                     openMapSearch("turistik yerler"); reply = "Gezilecek yerleri haritada arıyorum.";
+                } else if (phrase.contains("çevrimdışı harita") || phrase.contains("haritayı indir") || phrase.contains("rotayı indir")) {
+                    if (lastDestination.isEmpty()) { showNavigation(); reply = "Önce hedefini belirle, sonra çevrimdışı harita hazırlayalım."; }
+                    else { tripPreparation(lastDestination); reply = "Çevrimdışı harita hazırlığını açtım."; }
                 } else if (phrase.contains("devam edelim") && !lastDestination.isEmpty()) {
                     openDirections(lastDestination); reply = "Son rotanı açıyorum: " + lastDestination;
                 } else if (phrase.contains("yol tarifi") || phrase.contains("rota") || phrase.contains("navigasyon") || phrase.contains("götür") || phrase.contains("gitmek istiyorum") || phrase.contains("harita aç") || phrase.contains("haritayı aç")) {
@@ -326,7 +329,7 @@ public class MainActivity extends Activity {
 
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL); content.addView(row2);
-        homeTile(row2, "🏍", "Sürüş", "Geliştiriliyor", this::comingSoon);
+        homeTile(row2, "🏍", "Sürüş", "Hazırlık", this::showDrive);
         homeTile(row2, "🛡", "Uyg. Kilidi", "Geliştiriliyor", this::comingSoon);
         homeTile(row2, "🆘", "Acil Durum", "112 / Konum", this::showEmergency);
         homeTile(row2, "⚙", "Ayarlar", "Kişiselleştir", this::showSettings);
@@ -439,6 +442,44 @@ public class MainActivity extends Activity {
         }
         addCard("Ayarlar ekranına dön", "", this::showSettings);
     }
+    private void tripPreparation(String destination) {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Yolculuk hazırlığı")
+            .setMessage(destination + " rotası için internet kesilmeden çevrimdışı harita hazırlamak ister misin? Haritayı Google Haritalar içinde sen indireceksin.")
+            .setPositiveButton("Haritayı hazırla", (dialog, which) -> {
+                try {
+                    Intent maps = getPackageManager().getLaunchIntentForPackage("com.google.android.apps.maps");
+                    if (maps != null) startActivity(maps);
+                    else launchMap(Uri.parse("https://www.google.com/maps"));
+                    Toast.makeText(this, "Google Haritalar > Profil > Çevrimdışı haritalar bölümünden bölgeyi indir.", Toast.LENGTH_LONG).show();
+                } catch (Exception e) { Toast.makeText(this, "Haritalar açılamadı", Toast.LENGTH_LONG).show(); }
+            })
+            .setNegativeButton("Rotaya başla", (dialog, which) -> openDirections(destination))
+            .setNeutralButton("Vazgeç", null)
+            .show();
+    }
+    private void showDrive() {
+        page("Sürüş modu");
+        content.addView(text("Yolculuk öncesi hazırlık. Arka planda otomatik sürüş algılama henüz etkin değil.", 15, Color.LTGRAY, false));
+        addCard("🏍 Motosiklet", "Haritalarda sürüş rotası oluştur.", this::showNavigation);
+        addCard("🚗 Araba", "Haritalarda sürüş rotası oluştur.", this::showNavigation);
+        addCard("🚶 Yürüyüş", "Haritalarda yürüyüş rotasını seç.", this::showNavigation);
+        addCard("🗺 Çevrimdışı haritalar", "Haritalar uygulamasında indirme bölümüne git.", () -> {
+            try {
+                Intent i = getPackageManager().getLaunchIntentForPackage("com.google.android.apps.maps");
+                if (i != null) startActivity(i); else launchMap(Uri.parse("https://www.google.com/maps"));
+                Toast.makeText(this, "Profil > Çevrimdışı haritalar yolunu izle.", Toast.LENGTH_LONG).show();
+            } catch (Exception e) { Toast.makeText(this, "Haritalar açılamadı", Toast.LENGTH_LONG).show(); }
+        });
+        addCard("🎵 İndirilen müzikleri kontrol et", "YouTube Music içinde indirmelerini denetle.", () -> {
+            try {
+                Intent i = getPackageManager().getLaunchIntentForPackage("com.google.android.apps.youtube.music");
+                if (i != null) startActivity(i);
+                else launchMap(Uri.parse("https://music.youtube.com"));
+            } catch (Exception e) { Toast.makeText(this, "YouTube Music açılamadı", Toast.LENGTH_LONG).show(); }
+        });
+        addCard("Ana sayfa", "", this::showHome);
+    }
     private void showNavigation() {
         page("Navigasyon");
         content.addView(text("Hedefini yaz, harita uygulamasında yol tarifini açalım.", 16, Color.LTGRAY, false));
@@ -452,6 +493,12 @@ public class MainActivity extends Activity {
             String target = destination.getText().toString().trim();
             if (target.isEmpty()) destination.setError("Hedef yazmalısın");
             else { Toast.makeText(this, target + " için yol tarifi açılıyor", Toast.LENGTH_SHORT).show(); openDirections(target); }
+        });
+        addCard("🗺 Çevrimdışı rota hazırlığı", "Haritayı indirmek ister misin?", () -> {
+            String target = destination.getText().toString().trim();
+            if (target.isEmpty()) target = lastDestination;
+            if (target.isEmpty()) destination.setError("Önce hedef yaz");
+            else tripPreparation(target);
         });
         addCard("⛽ Benzin istasyonları", "Haritada istasyon ara.", () -> openMapSearch("benzin istasyonu"));
         addCard("☕ Dinlenme tesisleri", "Haritada mola yeri ara.", () -> openMapSearch("dinlenme tesisi"));
@@ -473,7 +520,7 @@ public class MainActivity extends Activity {
         addCard("🔎 YouTube Music ara", "Arama sonuçlarını müzik uygulamasında aç.", () -> { String q = musicQuery.getText().toString().trim(); if (!q.isEmpty()) searchMusic(q); else musicQuery.setError("Arama yaz"); });
         addCard("🔊 Sesi yükselt", "", () -> adjustVolume(true));
         addCard("🔉 Sesi kıs", "", () -> adjustVolume(false));
-        content.addView(text("Müzik uygulaması komutları desteklemiyorsa çalışmayabilir. Şarkı arama henüz eklenmedi.", 13, Color.LTGRAY, false));
+        content.addView(text("Müzik uygulaması komutları desteklemiyorsa çalışmayabilir. Şarkı araması YouTube Music üzerinden açılır.", 13, Color.LTGRAY, false));
         addCard("Ana ekrana dön", "", this::showHome);
     }
     private void comingSoon() { Toast.makeText(this, "Bu özellik henüz geliştirilmedi", Toast.LENGTH_SHORT).show(); }
