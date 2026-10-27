@@ -164,7 +164,13 @@ public class MainActivity extends Activity {
             if (words != null && !words.isEmpty()) {
                 String phrase = words.get(0).toLowerCase(new Locale("tr", "TR"));
                 String reply;
-                if (phrase.contains("hava durumu") || phrase.contains("yağmur yağacak")) {
+                if (phrase.contains("yolculuğu başlat") || phrase.contains("rota kaydını başlat")) {
+                    beginTrip(); reply = "Yolculuk kaydını başlatıyorum.";
+                } else if (phrase.contains("yolculuğu bitir") || phrase.contains("rota kaydını bitir")) {
+                    endTrip(); reply = "Yolculuk kaydını bitiriyorum.";
+                } else if (phrase.contains("geçmiş rotalar") || phrase.contains("yolculuk geçmişim")) {
+                    showTrips(); reply = "Geçmiş rotalarını açıyorum.";
+                } else if (phrase.contains("hava durumu") || phrase.contains("yağmur yağacak")) {
                     openWeather(); reply = "Hava durumu bilgilerini açıyorum.";
                 } else if (phrase.contains("rehber") || phrase.contains("kişilerimi aç")) {
                     pickPhoneContact(); reply = "Rehberden arayacağın kişiyi seçebilirsin.";
@@ -459,7 +465,7 @@ public class MainActivity extends Activity {
         homeTile(bottom, "⌂", "Ana Sayfa", "", this::showHome);
         homeTile(bottom, "🎙", "Komutlar", "", this::listen);
         homeTile(bottom, "🎧", "Bluetooth", "", this::showBluetooth);
-        homeTile(bottom, "◷", "Geçmiş", "", this::showHistory);
+        homeTile(bottom, "◷", "Rotalarım", "", this::showTrips);
         content.addView(text("Fatma 0.6 • Önizleme tasarımına yakınlaştırılmış arayüz", 11, Color.GRAY, false));
     }
     private void launchMap(Uri uri) {
@@ -515,6 +521,53 @@ public class MainActivity extends Activity {
         String updated = entry + "\n" + old;
         if (updated.length() > 9000) updated = updated.substring(0, 9000);
         p.edit().putString("history", updated).apply();
+    }
+    private void beginTrip() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 103);
+            Toast.makeText(this, "Konum iznini verdikten sonra yolculuk kaydını yeniden başlat.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            Intent i = new Intent(this, TripService.class);
+            i.setAction(TripService.START);
+            i.putExtra("device", trustedBluetoothAddress.isEmpty() ? "Manuel" : "Seçili Bluetooth");
+            startForegroundService(i);
+            Toast.makeText(this, "GPS yolculuk kaydı başlatıldı", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) { Toast.makeText(this, "Yolculuk kaydı başlatılamadı: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+    }
+    private void endTrip() {
+        Intent i = new Intent(this, TripService.class);
+        i.setAction(TripService.STOP);
+        try { startService(i); } catch (Exception ignored) {}
+        Toast.makeText(this, "Yolculuk kaydı sonlandırılıyor", Toast.LENGTH_SHORT).show();
+    }
+    private void showTrips() {
+        page("Geçmiş rotalarım");
+        content.addView(text("Güvenilir Bluetooth bağlandığında GPS kaydı denenir. Android arka plan kısıtları otomatik başlatmayı engelleyebilir. Kayıt sırasında konum bildirimi görünür.", 14, Color.LTGRAY, false));
+        boolean active = getSharedPreferences("trip_state", MODE_PRIVATE).getBoolean("active", false);
+        content.addView(text(active ? "● Yolculuk kaydı açık" : "○ Yolculuk kaydı kapalı", 17, ACCENT, true));
+        addCard("▶️ Kaydı başlat", "Gerekirse elle başlat.", this::beginTrip);
+        addCard("⏹ Kaydı bitir", "Mevcut rotayı kaydet.", this::endTrip);
+        android.content.SharedPreferences p = getSharedPreferences("trips", MODE_PRIVATE);
+        int next = p.getInt("next", 0);
+        if (next == 0) content.addView(text("Henüz kaydedilmiş yolculuk yok.", 15, Color.WHITE, false));
+        for (int id = next; id > Math.max(0, next - 40); id--) {
+            String[] parts = p.getString("trip_" + id, "").split("\\|", 7);
+            if (parts.length != 7) continue;
+            final String points = parts[6];
+            String summary = parts[1] + " • " + String.format(Locale.getDefault(), "%.1f km", Double.parseDouble(parts[2]) / 1000.0)
+                + " • " + (Long.parseLong(parts[3]) / 60000) + " dk\nOrtalama: " + parts[4] + " km/sa • En yüksek: " + parts[5] + " km/sa";
+            addCard("🏍 " + parts[0], summary, () -> {
+                String[] coords = points.split(";");
+                if (coords.length > 0 && coords[coords.length-1].contains(",")) {
+                    String[] latlon = coords[coords.length-1].split(",");
+                    launchMap(Uri.parse("geo:" + latlon[0] + "," + latlon[1] + "?q=" + latlon[0] + "," + latlon[1]));
+                    Toast.makeText(this, "Varış noktası açıldı. Tam GPS çizgisi henüz haritada çizilmiyor.", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        addCard("Ana sayfa", "", this::showHome);
     }
     private void showHistory() {
         page("Geçmiş");
@@ -580,6 +633,7 @@ public class MainActivity extends Activity {
         page("Sürüş modu");
         content.addView(text("Yolculuk öncesi hazırlık. Arka planda otomatik sürüş algılama henüz etkin değil.", 15, Color.LTGRAY, false));
         addCard("🏍 Motosiklet", "Haritalarda sürüş rotası oluştur.", this::showNavigation);
+        addCard("📍 Geçmiş rotalarım", "GPS yolculuk kayıtları ve hız istatistikleri.", this::showTrips);
         addCard("🚗 Araba", "Haritalarda sürüş rotası oluştur.", this::showNavigation);
         addCard("🚶 Yürüyüş", "Haritalarda yürüyüş rotasını seç.", this::showNavigation);
         addCard("🗺 Çevrimdışı haritalar", "Haritalar uygulamasında indirme bölümüne git.", () -> {
