@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
         button("⏭️ Sonraki şarkı", () -> media(KeyEvent.KEYCODE_MEDIA_NEXT));
         button("⏮️ Önceki şarkı", () -> media(KeyEvent.KEYCODE_MEDIA_PREVIOUS));
         button("🎵 YouTube Music'te şarkı ara", this::askMusic);
+        button("⚙️ Otomatik şarkı oynatma izni", () -> open(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         button("🔊 Kadın sesi", () -> changeVoice("tr-TR-language"));
         button("🔉 Erkek sesi", () -> changeVoice("tr-tr-x-ama-local"));
         button("🗣️ Sesi dene", () -> say("Merhaba, ben Fatma. Seni dinliyorum."));
@@ -155,10 +156,11 @@ public class MainActivity extends Activity {
             }).setNegativeButton("Vazgeç",null).show();
     }
     private void searchMusic(String q) {
+        getSharedPreferences("music_accessibility", MODE_PRIVATE).edit().putString("pending_song", q).putLong("pending_since", System.currentTimeMillis()).apply();
         Intent music = new Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com/search?q="+Uri.encode(q)));
         music.setPackage("com.google.android.apps.youtube.music");
         try { startActivity(music); } catch (Exception e) { open(new Intent(Intent.ACTION_VIEW,Uri.parse("https://music.youtube.com/search?q="+Uri.encode(q)))); }
-        say("Şarkıyı YouTube Music üzerinde arıyorum. Otomatik oynatma henüz desteklenmiyor.");
+        say("Şarkıyı arıyorum. İzin açıksa otomatik seçmeyi deneyeceğim.");
     }
     private void askMusic() {
         EditText field = new EditText(this);
