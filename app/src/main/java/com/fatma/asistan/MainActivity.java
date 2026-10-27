@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
                         .replace("rotayı", "").replace("rota", "").replace("navigasyon", "")
                         .replace("başlat", "").replace("aç", "").replace("ver", "")
                         .replace("için", "").replace("lütfen", "").trim();
-                    destination = destination.replaceAll("(?iu)(ya|ye|a|e)$", "").trim();
+                    destination = destination.replaceAll("(?iu)[\u0027’](ya|ye|a|e)$", "").trim();
                     if (destination.isEmpty()) {
                         showNavigation();
                         reply = "Navigasyon ekranını açtım. Hedef söyleyebilirsin: Antalya'ya götür.";
