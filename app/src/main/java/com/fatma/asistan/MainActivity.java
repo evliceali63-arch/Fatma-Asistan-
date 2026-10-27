@@ -168,8 +168,11 @@ public class MainActivity extends Activity {
                     openWeather(); reply = "Hava durumu bilgilerini açıyorum.";
                 } else if (phrase.contains("rehber") || phrase.contains("kişilerimi aç")) {
                     pickPhoneContact(); reply = "Rehberden arayacağın kişiyi seçebilirsin.";
+                } else if (phrase.contains("mesajımı oku") || phrase.contains("whatsapp oku")) {
+                    String latest = WhatsAppListener.lastMessage();
+                    reply = latest.isEmpty() ? "Henüz okunabilecek WhatsApp bildirimi yok." : latest;
                 } else if (phrase.contains("whatsapp aç") || phrase.contains("whatsapp mesaj")) {
-                    shareWhatsApp(); reply = "WhatsApp paylaşım ekranını açıyorum. Mesajı göndermeden önce kontrol et.";
+                    showWhatsAppMessages(); reply = "WhatsApp bildirimleri ekranını açıyorum.";
                 } else if (phrase.contains("güvenlik ayarları") || phrase.contains("izinleri aç")) {
                     showSecurity(); reply = "Güvenlik ayarlarını açıyorum.";
                 } else if (phrase.contains("benzin") || phrase.contains("akaryakıt") || phrase.contains("petrol istasyonu")) {
@@ -343,6 +346,35 @@ public class MainActivity extends Activity {
             startActivityForResult(intent, CONTACT_PICK_REQUEST);
         } catch (Exception e) { Toast.makeText(this, "Rehber açılamadı", Toast.LENGTH_LONG).show(); }
     }
+    private void showWhatsAppMessages() {
+        page("WhatsApp bildirimleri");
+        content.addView(text("Yalnızca bildirim erişimi izni verdiğin mesajlar görülebilir. Mesajlar uygulama içinde otomatik gönderilmez; önce sen onaylarsın.", 15, Color.LTGRAY, false));
+        addCard("🔐 Bildirim erişimi izni", "Android ayarlarından Fatma'ya bildirim erişimi ver.", () -> {
+            try { startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
+            catch (Exception e) { Toast.makeText(this, "Bildirim ayarları açılamadı", Toast.LENGTH_LONG).show(); }
+        });
+        String latest = WhatsAppListener.lastMessage();
+        addCard("💬 Son gelen mesaj", latest.isEmpty() ? "Henüz bildirim alınmadı; izin verdikten sonra yeni mesaj bekle." : latest,
+            () -> { if (!WhatsAppListener.lastMessage().isEmpty()) speak(WhatsAppListener.lastMessage()); });
+        EditText answer = new EditText(this);
+        answer.setTextColor(Color.WHITE);
+        answer.setHintTextColor(Color.GRAY);
+        answer.setHint("Yanıtını yaz");
+        content.addView(answer);
+        addCard("✉️ Yanıtı kontrol et ve gönder", "Yalnızca son WhatsApp bildirimindeki yanıt eylemi destekleniyorsa çalışır.", () -> {
+            String response = answer.getText().toString().trim();
+            if (response.isEmpty()) { answer.setError("Yanıt yaz"); return; }
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("WhatsApp yanıtını gönder?")
+                .setMessage(response)
+                .setNegativeButton("Vazgeç", null)
+                .setPositiveButton("Gönder", (d,w) -> {
+                    boolean sent = WhatsAppListener.reply(response);
+                    Toast.makeText(this, sent ? "Yanıt işlemi WhatsApp'a iletildi" : "Yanıt gönderilemedi; WhatsApp bildiriminde yanıt seçeneği olmalı", Toast.LENGTH_LONG).show();
+                }).show();
+        });
+        addCard("Ana sayfa", "", this::showHome);
+    }
     private void shareWhatsApp() {
         try {
             Intent i = new Intent(Intent.ACTION_SEND);
@@ -409,10 +441,7 @@ public class MainActivity extends Activity {
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL); content.addView(row1);
         homeTile(row1, "📞", "Ara", "Rehberden seç", this::pickPhoneContact);
-        homeTile(row1, "💬", "WhatsApp", "Uygulamayı aç", () -> {
-            Intent i = getPackageManager().getLaunchIntentForPackage("com.whatsapp");
-            if (i != null) startActivity(i); else Toast.makeText(this, "WhatsApp yüklü değil", Toast.LENGTH_SHORT).show();
-        });
+        homeTile(row1, "💬", "WhatsApp", "Mesaj / Yanıt", this::showWhatsAppMessages);
         homeTile(row1, "🎵", "Müzik", "Oynat / Durdur", this::showMusic);
         homeTile(row1, "🧭", "Navigasyon", "Rota oluştur", this::showNavigation);
 
@@ -694,6 +723,7 @@ public class MainActivity extends Activity {
         content.addView(text("Pil uyarıları uygulama açıkken çalışır. Arka plan izleme sonraki sürümlerde geliştirilecek.", 13, Color.LTGRAY, false));
         addCard("🔐 Güvenlik ve izinler", "Telefonun güvenlik ayarlarını aç.", this::showSecurity);
         addCard("🎧 Bluetooth ve interkom", "Güvenilir cihaz seç.", this::showBluetooth);
+        addCard("💬 WhatsApp bildirimleri", "Okuma ve onaylı yanıt", this::showWhatsAppMessages);
         addCard("Ana ekrana dön", "", this::showHome);
     }
     private void setVoicePreference(String preference) {
