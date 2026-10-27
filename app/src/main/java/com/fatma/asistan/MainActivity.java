@@ -1,6 +1,9 @@
 package com.fatma.asistan;
 
 import android.app.Activity;
+import android.net.Uri;
+import android.media.AudioManager;
+import android.view.KeyEvent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
@@ -111,7 +114,27 @@ public class MainActivity extends Activity {
             if (words != null && !words.isEmpty()) {
                 String phrase = words.get(0).toLowerCase(new Locale("tr", "TR"));
                 String reply;
-                if (phrase.contains("saat kaç") || phrase.contains("saati söyle")) {
+                if (phrase.contains("benzin istasyonu") || phrase.contains("akaryakıt")) {
+                    openMapSearch("benzin istasyonu"); reply = "Yakındaki benzin istasyonlarını haritada açıyorum.";
+                } else if (phrase.contains("dinlenme tesisi") || phrase.contains("mola yeri")) {
+                    openMapSearch("dinlenme tesisi"); reply = "Dinlenme tesislerini haritada arıyorum.";
+                } else if (phrase.contains("navigasyon aç") || phrase.contains("haritayı aç")) {
+                    openMapSearch("yakınımdaki yerler"); reply = "Haritayı açıyorum.";
+                } else if (phrase.contains("yol tarifi") || phrase.contains("rota oluştur") || phrase.contains("navigasyon başlat")) {
+                    String destination = phrase.replace("fatma", "").replace("zilli", "").replace("bana", "").replace("yol tarifi", "").replace("rota oluştur", "").replace("navigasyon başlat", "").replace("aç", "").replace("ver", "").trim();
+                    if (destination.isEmpty()) { reply = "Hedef belirtmelisin. Örneğin Antalya'ya yol tarifi aç."; }
+                    else { openDirections(destination); reply = destination + " için yol tarifi açıyorum."; }
+                } else if (phrase.contains("sonraki şarkı") || phrase.contains("şarkıyı geç")) {
+                    mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); reply = "Sonraki şarkıya geçiyorum.";
+                } else if (phrase.contains("önceki şarkı")) {
+                    mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); reply = "Önceki şarkıya dönüyorum.";
+                } else if (phrase.contains("müziği durdur") || phrase.contains("müziği duraklat")) {
+                    mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE); reply = "Müziği duraklatıyorum.";
+                } else if (phrase.contains("müziği aç") || phrase.contains("müziği devam ettir")) {
+                    mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY); reply = "Müziği devam ettiriyorum.";
+                } else if (phrase.contains("şarjım kaç") || phrase.contains("pilim kaç")) {
+                    reply = batteryPercent < 0 ? "Pil seviyesini okuyamadım." : "Telefonunun şarjı yüzde " + batteryPercent + ".";
+                } else if (phrase.contains("saat kaç") || phrase.contains("saati söyle")) {
                     reply = "Saat " + new SimpleDateFormat("HH:mm", new Locale("tr", "TR")).format(Calendar.getInstance().getTime());
                 } else if (phrase.contains("adın ne") || phrase.contains("ismin ne")) {
                     reply = "Benim adım " + assistantName;
@@ -182,9 +205,63 @@ public class MainActivity extends Activity {
         });
         addCard("🎙️ Beni dinle", "Türkçe sesli komut vermek için dokun.", this::listen);
         addCard("🔊 Sesimi dene", "Asistanın Türkçe konuşmasını dinle.", () -> speak("Merhaba, ben " + assistantName + ". Sana nasıl yardımcı olabilirim?"));
-        addCard("Navigasyon ve sürüş", "Sonraki sürümde eklenecek.", this::comingSoon);
+        addCard("🧭 Navigasyon", "Hedef belirle, yol tarifi ve benzin istasyonu ara.", this::showNavigation);
+        addCard("🎵 Müzik kontrolü", "Oynat, durdur, sonraki ve önceki şarkı.", this::showMusic);
         addCard("Kaza algılama", "Henüz aktif değil; acil durum sistemi olarak kullanmayın.", this::comingSoon);
-        content.addView(text("Sürüm 0.3 - Pil ve kişiselleştirme", 13, Color.GRAY, false));
+        content.addView(text("Sürüm 0.4 - Navigasyon ve müzik", 13, Color.GRAY, false));
+    }
+    private void launchMap(Uri uri) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, uri);
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "Harita uygulaması bulunamadı", Toast.LENGTH_LONG).show();
+        }
+    }
+    private void openDirections(String destination) {
+        String clean = destination.trim();
+        if (clean.isEmpty()) return;
+        launchMap(Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(clean)));
+    }
+    private void openMapSearch(String query) {
+        launchMap(Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(query)));
+    }
+    private void mediaKey(int code) {
+        AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (manager != null) {
+            manager.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+            manager.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
+        }
+    }
+    private void showNavigation() {
+        page("Navigasyon");
+        content.addView(text("Hedefini yaz, harita uygulamasında yol tarifini açalım.", 16, Color.LTGRAY, false));
+        EditText destination = new EditText(this);
+        destination.setSingleLine(true);
+        destination.setHint("Örn. Antalya");
+        destination.setHintTextColor(Color.GRAY);
+        destination.setTextColor(Color.WHITE);
+        content.addView(destination);
+        addCard("🧭 Yol tarifi başlat", "Seçilen hedef için harita uygulamasını aç.", () -> {
+            String target = destination.getText().toString().trim();
+            if (target.isEmpty()) destination.setError("Hedef yazmalısın");
+            else openDirections(target);
+        });
+        addCard("⛽ Benzin istasyonları", "Haritada istasyon ara.", () -> openMapSearch("benzin istasyonu"));
+        addCard("☕ Dinlenme tesisleri", "Haritada mola yeri ara.", () -> openMapSearch("dinlenme tesisi"));
+        addCard("🏛️ Gezilecek yerler", "Yakındaki turistik yerleri ara.", () -> openMapSearch("turistik yerler"));
+        content.addView(text("Rota yönlendirmesini yüklü harita uygulaması yapar. Uygulama içi navigasyon henüz yok.", 13, Color.LTGRAY, false));
+        addCard("Ana ekrana dön", "", this::showHome);
+    }
+    private void showMusic() {
+        page("Müzik kontrolü");
+        content.addView(text("Telefonda aktif müzik oynatıcısına temel medya komutları gönderilir.", 16, Color.LTGRAY, false));
+        addCard("▶️ Oynat", "Müziği devam ettir.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY));
+        addCard("⏸️ Duraklat", "Müziği durdur.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE));
+        addCard("⏭️ Sonraki", "Sonraki şarkı.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT));
+        addCard("⏮️ Önceki", "Önceki şarkı.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS));
+        content.addView(text("Müzik uygulaması komutları desteklemiyorsa çalışmayabilir. Şarkı arama henüz eklenmedi.", 13, Color.LTGRAY, false));
+        addCard("Ana ekrana dön", "", this::showHome);
     }
     private void comingSoon() { Toast.makeText(this, "Bu özellik henüz geliştirilmedi", Toast.LENGTH_SHORT).show(); }
     private void showSettings() {
