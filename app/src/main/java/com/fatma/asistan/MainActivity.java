@@ -108,12 +108,12 @@ public class MainActivity extends Activity {
         else if (phrase.contains("önceki")) { media(KeyEvent.KEYCODE_MEDIA_PREVIOUS); say("Önceki şarkı."); }
         else if (phrase.contains("durdur") || phrase.contains("duraklat")) { media(KeyEvent.KEYCODE_MEDIA_PAUSE); say("Müziği duraklatıyorum."); }
         else if (phrase.equals("müzik aç") || phrase.equals("müziği aç") || phrase.equals("devam et") || phrase.equals("müzik çal")) { media(KeyEvent.KEYCODE_MEDIA_PLAY); say("Müziği başlatıyorum."); }
-        else if (phrase.contains("şarkısını aç") || phrase.contains("şarkıyı aç") || phrase.contains("şarkı ara") || phrase.contains("şarkısını çal") || phrase.contains("müziğini aç") || phrase.contains("çal") || phrase.contains("aç")) {
+        else if (phrase.contains("şarkısını aç") || phrase.contains("şarkıyı aç") || phrase.contains("şarkı ara") || phrase.contains("şarkısını çal") || phrase.contains("müziğini aç") || phrase.contains(" çal") || phrase.contains("şarkı aç") || phrase.contains("müzik aç")) {
             String q = phrase.replace("şarkısını aç","").replace("şarkısını çal","").replace("şarkıyı aç","").replace("şarkı ara","").replace("müziğini aç","").replace("çal","").replace("aç","").replace("fatma","").replace("lütfen","").trim();
             if (q.isEmpty()) askMusic(); else searchMusic(q);
         }
-        else if (phrase.contains("yol tarifi") || phrase.contains("navigasyon") || phrase.contains("gitmek istiyorum") || phrase.contains("götür") || phrase.contains("rota oluştur") || phrase.contains("yol göster")) {
-            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("götür","").replace("rota oluştur","").replace("yol göster","").replace("fatma","").replace("beni","").replace("lütfen","").replace("için","").trim();
+        else if (phrase.contains("yol tarifi") || phrase.contains("navigasyon") || phrase.contains("gitmek istiyorum") || phrase.contains("götür") || phrase.contains("rota oluştur") || phrase.contains("yol göster") || phrase.contains("haritayı aç")) {
+            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("götür","").replace("rota oluştur","").replace("yol göster","").replace("haritayı aç","").replace("fatma","").replace("beni","").replace("lütfen","").replace("için","").trim();
             if (dest.isEmpty()) askDestination(); else navigate(dest);
         }
         else say("Bu komutu henüz bilmiyorum: " + phrase);
