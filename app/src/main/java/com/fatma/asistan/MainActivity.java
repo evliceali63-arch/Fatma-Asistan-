@@ -1,6 +1,16 @@
 package com.fatma.asistan;
 
 import android.app.Activity;
+import android.Manifest;
+import android.os.Build;
+import android.content.pm.PackageManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.provider.ContactsContract;
+import android.database.Cursor;
+import android.content.ComponentName;
+import android.app.KeyguardManager;
 import android.net.Uri;
 import android.media.AudioManager;
 import android.content.ActivityNotFoundException;
@@ -70,6 +80,9 @@ public class MainActivity extends Activity {
         }
     };
     private static final int SPEECH_REQUEST = 100;
+    private static final int CONTACT_PICK_REQUEST = 101;
+    private static final int BLUETOOTH_PERMISSION_REQUEST = 102;
+    private String trustedBluetoothAddress = "";
     private static final int BG = Color.rgb(9, 9, 12);
     private static final int PANEL = Color.rgb(23, 20, 23);
     private static final int ACCENT = Color.rgb(255, 103, 29);
@@ -77,6 +90,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
+        trustedBluetoothAddress = getPreferences(MODE_PRIVATE).getString("trusted_bluetooth", "");
         voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
         speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
         speechPitch = 1.0f;
@@ -139,12 +153,26 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == CONTACT_PICK_REQUEST && resultCode == RESULT_OK && data != null) {
+            try (Cursor cursor = getContentResolver().query(data.getData(), new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER}, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) openDialer(cursor.getString(0));
+            } catch (Exception e) { Toast.makeText(this, "Numara okunamadı", Toast.LENGTH_LONG).show(); }
+            return;
+        }
         if (requestCode == SPEECH_REQUEST && resultCode == RESULT_OK && data != null) {
             ArrayList<String> words = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (words != null && !words.isEmpty()) {
                 String phrase = words.get(0).toLowerCase(new Locale("tr", "TR"));
                 String reply;
-                if (phrase.contains("benzin") || phrase.contains("akaryakıt") || phrase.contains("petrol istasyonu")) {
+                if (phrase.contains("hava durumu") || phrase.contains("yağmur yağacak")) {
+                    openWeather(); reply = "Hava durumu bilgilerini açıyorum.";
+                } else if (phrase.contains("rehber") || phrase.contains("kişilerimi aç")) {
+                    pickPhoneContact(); reply = "Rehberden arayacağın kişiyi seçebilirsin.";
+                } else if (phrase.contains("whatsapp aç") || phrase.contains("whatsapp mesaj")) {
+                    shareWhatsApp(); reply = "WhatsApp paylaşım ekranını açıyorum. Mesajı göndermeden önce kontrol et.";
+                } else if (phrase.contains("güvenlik ayarları") || phrase.contains("izinleri aç")) {
+                    showSecurity(); reply = "Güvenlik ayarlarını açıyorum.";
+                } else if (phrase.contains("benzin") || phrase.contains("akaryakıt") || phrase.contains("petrol istasyonu")) {
                     openMapSearch("benzin istasyonu"); reply = "Yakındaki benzin istasyonlarını haritada açıyorum.";
                 } else if (phrase.contains("dinlenme") || phrase.contains("mola yeri")) {
                     openMapSearch("dinlenme tesisi"); reply = "Dinlenme tesislerini haritada arıyorum.";
@@ -275,9 +303,70 @@ public class MainActivity extends Activity {
         tile.setOnClickListener(v -> action.run());
     }
     private void showBluetooth() {
-        page("Bluetooth");
-        content.addView(text("Şu anda telefonun Bluetooth ayarlarını açabiliriz. Güvenilir interkom seçimi ve otomatik etkinleşme henüz geliştirilmedi.", 16, Color.LTGRAY, false));
-        addCard("🔵 Bluetooth ayarlarını aç", "İnterkomunu telefonla eşleştir.", () -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+        page("Bluetooth ve interkom");
+        content.addView(text("Telefonla önceden eşleştirilmiş cihazlardan interkomunu seç. Bağlantı durumunu telefon yönetir.", 15, Color.LTGRAY, false));
+        addCard("⚙ Bluetooth eşleştirme ayarları", "Yeni interkomu önce telefonla eşleştir.", () -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            addCard("🔐 Bluetooth izni ver", "Eşleştirilmiş cihazları görmek için izin gerekir.", () -> requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, BLUETOOTH_PERMISSION_REQUEST));
+        } else {
+            try {
+                BluetoothManager manager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+                BluetoothAdapter adapter = manager == null ? null : manager.getAdapter();
+                if (adapter == null) {
+                    content.addView(text("Bu cihazda Bluetooth bulunamadı.", 15, Color.WHITE, false));
+                } else if (!adapter.isEnabled()) {
+                    content.addView(text("Bluetooth kapalı. Telefon ayarlarından aç.", 15, Color.WHITE, false));
+                } else {
+                    java.util.Set<BluetoothDevice> paired = adapter.getBondedDevices();
+                    if (paired.isEmpty()) content.addView(text("Eşleştirilmiş cihaz yok.", 15, Color.WHITE, false));
+                    for (BluetoothDevice device : paired) {
+                        String name = device.getName() == null ? "Adsız cihaz" : device.getName();
+                        String address = device.getAddress();
+                        addCard((address.equals(trustedBluetoothAddress) ? "✓ " : "") + name, "Güvenilir interkom olarak seç", () -> {
+                            trustedBluetoothAddress = address;
+                            getPreferences(MODE_PRIVATE).edit().putString("trusted_bluetooth", address).apply();
+                            Toast.makeText(this, name + " kaydedildi", Toast.LENGTH_SHORT).show();
+                            showBluetooth();
+                        });
+                    }
+                }
+            } catch (SecurityException e) {
+                content.addView(text("Bluetooth izni gerekiyor.", 15, Color.WHITE, false));
+            }
+        }
+        content.addView(text("Güvenilir cihaz seçimi hazır. Otomatik mikrofon açma ve interkomdan ses alma henüz etkin değil.", 13, Color.LTGRAY, false));
+        addCard("Ana sayfa", "", this::showHome);
+    }
+    private void pickPhoneContact() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
+            startActivityForResult(intent, CONTACT_PICK_REQUEST);
+        } catch (Exception e) { Toast.makeText(this, "Rehber açılamadı", Toast.LENGTH_LONG).show(); }
+    }
+    private void shareWhatsApp() {
+        try {
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("text/plain");
+            i.setPackage("com.whatsapp");
+            i.putExtra(Intent.EXTRA_TEXT, "Merhaba");
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "WhatsApp yüklü değil veya paylaşım desteklenmiyor", Toast.LENGTH_LONG).show();
+        }
+    }
+    private void openWeather() {
+        launchMap(Uri.parse("https://www.google.com/search?q=" + Uri.encode("bulunduğum yer hava durumu")));
+    }
+    private void openPrivacySettings() {
+        try { startActivity(new Intent(Settings.ACTION_PRIVACY_SETTINGS)); }
+        catch (Exception e) { startActivity(new Intent(Settings.ACTION_SETTINGS)); }
+    }
+    private void showSecurity() {
+        page("Güvenlik ve izinler");
+        content.addView(text("Android'in izin verdiği güvenlik ayarlarını buradan açabilirsin. Diğer uygulamaları zorla kilitleme veya sistem kilidini değiştirme yetkimiz yok.", 15, Color.LTGRAY, false));
+        addCard("🔐 Telefonun ekran kilidi", "Android güvenlik ayarlarını aç.", () -> startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)));
+        addCard("🛡 Gizlilik ayarları", "Mikrofon ve uygulama izinlerini denetle.", this::openPrivacySettings);
+        addCard("📋 Komut geçmişi", "Kaydedilmiş sesli komutları görüntüle veya sil.", this::showHistory);
         addCard("Ana sayfa", "", this::showHome);
     }
     private void showHome() {
@@ -319,7 +408,7 @@ public class MainActivity extends Activity {
 
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL); content.addView(row1);
-        homeTile(row1, "📞", "Ara", "Arama ekranı", () -> openDialer(""));
+        homeTile(row1, "📞", "Ara", "Rehberden seç", this::pickPhoneContact);
         homeTile(row1, "💬", "WhatsApp", "Uygulamayı aç", () -> {
             Intent i = getPackageManager().getLaunchIntentForPackage("com.whatsapp");
             if (i != null) startActivity(i); else Toast.makeText(this, "WhatsApp yüklü değil", Toast.LENGTH_SHORT).show();
@@ -330,7 +419,7 @@ public class MainActivity extends Activity {
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL); content.addView(row2);
         homeTile(row2, "🏍", "Sürüş", "Hazırlık", this::showDrive);
-        homeTile(row2, "🛡", "Uyg. Kilidi", "Geliştiriliyor", this::comingSoon);
+        homeTile(row2, "🛡", "Güvenlik", "İzinler / Kilit", this::showSecurity);
         homeTile(row2, "🆘", "Acil Durum", "112 / Konum", this::showEmergency);
         homeTile(row2, "⚙", "Ayarlar", "Kişiselleştir", this::showSettings);
 
@@ -603,6 +692,8 @@ public class MainActivity extends Activity {
             });
         }
         content.addView(text("Pil uyarıları uygulama açıkken çalışır. Arka plan izleme sonraki sürümlerde geliştirilecek.", 13, Color.LTGRAY, false));
+        addCard("🔐 Güvenlik ve izinler", "Telefonun güvenlik ayarlarını aç.", this::showSecurity);
+        addCard("🎧 Bluetooth ve interkom", "Güvenilir cihaz seç.", this::showBluetooth);
         addCard("Ana ekrana dön", "", this::showHome);
     }
     private void setVoicePreference(String preference) {
