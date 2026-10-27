@@ -3,6 +3,12 @@ package com.fatma.asistan;
 import android.app.Activity;
 import android.net.Uri;
 import android.media.AudioManager;
+import android.content.ActivityNotFoundException;
+import android.content.SharedPreferences;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
+import java.util.List;
+import java.util.Collections;
 import android.view.KeyEvent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -35,6 +41,8 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private String voicePreference = "Kadın";
+    private String selectedVoiceName = "";
+    private String lastDestination = "";
     private float speechRate = 0.95f;
     private int batteryThreshold = 20;
     private int batteryPercent = -1;
@@ -64,6 +72,8 @@ public class MainActivity extends Activity {
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
         voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
         speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
+        selectedVoiceName = getPreferences(MODE_PRIVATE).getString("selected_voice", "");
+        lastDestination = getPreferences(MODE_PRIVATE).getString("last_destination", "");
         batteryThreshold = getPreferences(MODE_PRIVATE).getInt("battery_threshold", 20);
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         tts = new TextToSpeech(this, status -> {
@@ -81,6 +91,12 @@ public class MainActivity extends Activity {
     private void applyVoice() {
         if (!ttsReady) return;
         Voice selected = null;
+        if (!selectedVoiceName.isEmpty()) {
+            for (Voice v : tts.getVoices() == null ? Collections.<Voice>emptySet() : tts.getVoices()) {
+                if (v.getName().equals(selectedVoiceName) && "tr".equals(v.getLocale().getLanguage())) { selected = v; break; }
+            }
+        }
+        if (selected == null) {
         for (Voice v : tts.getVoices() == null ? java.util.Collections.<Voice>emptySet() : tts.getVoices()) {
             if (!"tr".equals(v.getLocale().getLanguage())) continue;
             String n = v.getName().toLowerCase(Locale.ROOT);
@@ -88,6 +104,7 @@ public class MainActivity extends Activity {
             boolean female = n.contains("female");
             if ((voicePreference.equals("Erkek") && male) || (voicePreference.equals("Kadın") && female)) { selected = v; break; }
             if (selected == null) selected = v;
+        }
         }
         if (selected != null) tts.setVoice(selected);
         tts.setSpeechRate(speechRate);
@@ -132,6 +149,18 @@ public class MainActivity extends Activity {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE); reply = "Müziği duraklatıyorum.";
                 } else if (phrase.contains("müziği aç") || phrase.contains("müziği devam ettir") || phrase.contains("müzik aç") || phrase.contains("müzik başlat") || phrase.contains("şarkı aç") || phrase.contains("şarkı çal")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY); reply = "Müziği devam ettiriyorum.";
+                } else if (phrase.contains("devam edelim") && !lastDestination.isEmpty()) {
+                    openDirections(lastDestination); reply = "Son rotanı açıyorum: " + lastDestination;
+                } else if (phrase.contains("müzik ara") || phrase.contains("şarkı ara") || phrase.contains("şarkısını aç")) {
+                    String q = phrase.replace("müzik ara", "").replace("şarkı ara", "").replace("şarkısını aç", "").trim();
+                    if (q.isEmpty()) reply = "Aramak istediğin şarkıyı söyle.";
+                    else { searchMusic(q); reply = q + " için YouTube Music araması açıyorum."; }
+                } else if (phrase.contains("sesi yükselt") || phrase.contains("ses aç")) {
+                    adjustVolume(true); reply = "Medya sesini yükseltiyorum.";
+                } else if (phrase.contains("sesi kıs") || phrase.contains("ses azalt")) {
+                    adjustVolume(false); reply = "Medya sesini kısıyorum.";
+                } else if (phrase.contains("acil arama")) {
+                    openDialer("112"); reply = "112 arama ekranını açıyorum. Aramayı sen başlatmalısın.";
                 } else if (phrase.contains("şarjım kaç") || phrase.contains("pilim kaç")) {
                     reply = batteryPercent < 0 ? "Pil seviyesini okuyamadım." : "Telefonunun şarjı yüzde " + batteryPercent + ".";
                 } else if (phrase.contains("saat kaç") || phrase.contains("saati söyle")) {
@@ -145,6 +174,7 @@ public class MainActivity extends Activity {
                 } else {
                     reply = "Seni duydum: " + words.get(0) + ". Bu komutu henüz öğrenmedim.";
                 }
+                saveHistory("🎙 " + words.get(0) + " → " + reply);
                 Toast.makeText(this, reply, Toast.LENGTH_LONG).show();
                 speak(reply);
             }
@@ -207,8 +237,10 @@ public class MainActivity extends Activity {
         addCard("🔊 Sesimi dene", "Asistanın Türkçe konuşmasını dinle.", () -> speak("Merhaba, ben " + assistantName + ". Sana nasıl yardımcı olabilirim?"));
         addCard("🧭 Navigasyon", "Hedef belirle, yol tarifi ve benzin istasyonu ara.", this::showNavigation);
         addCard("🎵 Müzik kontrolü", "Oynat, durdur, sonraki ve önceki şarkı.", this::showMusic);
+        addCard("🚨 Acil durum", "112 arama ekranı ve konum seçenekleri.", this::showEmergency);
+        addCard("📜 Geçmiş", "Sesli komut ve rota kayıtları.", this::showHistory);
         addCard("Kaza algılama", "Henüz aktif değil; acil durum sistemi olarak kullanmayın.", this::comingSoon);
-        content.addView(text("Sürüm 0.4 - Navigasyon ve müzik", 13, Color.GRAY, false));
+        content.addView(text("Sürüm 0.5 - Sesler, müzik arama, geçmiş ve acil durum", 13, Color.GRAY, false));
     }
     private void launchMap(Uri uri) {
         try {
@@ -222,6 +254,9 @@ public class MainActivity extends Activity {
     private void openDirections(String destination) {
         String clean = destination.trim();
         if (clean.isEmpty()) return;
+        lastDestination = clean;
+        getPreferences(MODE_PRIVATE).edit().putString("last_destination", clean).apply();
+        saveHistory("🧭 Rota: " + clean);
         // Android geo navigation intent first; Google Maps URL is a browser-compatible fallback.
         Uri navigation = Uri.parse("google.navigation:q=" + Uri.encode(clean));
         Intent direct = new Intent(Intent.ACTION_VIEW, navigation);
@@ -242,6 +277,63 @@ public class MainActivity extends Activity {
             manager.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
         }
     }
+    private void adjustVolume(boolean up) {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am != null) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, up ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
+    }
+    private void searchMusic(String query) {
+        launchMap(Uri.parse("https://music.youtube.com/search?q=" + Uri.encode(query)));
+    }
+    private void openDialer(String number) {
+        try { startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number))); }
+        catch (Exception e) { Toast.makeText(this, "Arama ekranı açılamadı", Toast.LENGTH_LONG).show(); }
+    }
+    private void saveHistory(String item) {
+        SharedPreferences p = getPreferences(MODE_PRIVATE);
+        String old = p.getString("history", "");
+        String entry = new SimpleDateFormat("dd.MM HH:mm", new Locale("tr","TR")).format(Calendar.getInstance().getTime()) + " " + item;
+        String updated = entry + "\n" + old;
+        if (updated.length() > 9000) updated = updated.substring(0, 9000);
+        p.edit().putString("history", updated).apply();
+    }
+    private void showHistory() {
+        page("Geçmiş");
+        content.addView(text(getPreferences(MODE_PRIVATE).getString("history", "Henüz kayıt yok."), 15, Color.WHITE, false));
+        addCard("Geçmişi temizle", "Cihazda tutulan kayıtları sil.", () -> {
+            new android.app.AlertDialog.Builder(this).setTitle("Geçmiş silinsin mi?")
+                .setPositiveButton("Sil", (d,w) -> { getPreferences(MODE_PRIVATE).edit().remove("history").apply(); showHistory(); })
+                .setNegativeButton("Vazgeç", null).show();
+        });
+        addCard("Ana ekrana dön", "", this::showHome);
+    }
+    private void showEmergency() {
+        page("Acil durum");
+        content.addView(text("Bu uygulama otomatik kaza algılama veya acil çağrı yapmaz. Acil tehlikede doğrudan 112'yi ara.", 16, Color.LTGRAY, false));
+        addCard("📞 112 arama ekranı", "Aramayı sen onaylayıp başlatırsın.", () -> openDialer("112"));
+        addCard("📍 Konumumu paylaş", "Harita uygulamasında mevcut konumunu aç; paylaşımı kendin onayla.", () -> launchMap(Uri.parse("geo:0,0?q=My+Location")));
+        addCard("Ana ekrana dön", "", this::showHome);
+    }
+    private void showVoicePicker() {
+        page("Türkçe ses seçimi");
+        if (!ttsReady || tts.getVoices() == null) {
+            content.addView(text("Türkçe ses motoru hazır değil. Telefonun metin okuma ayarlarını kontrol et.", 16, Color.WHITE, false));
+        } else {
+            ArrayList<Voice> voices = new ArrayList<>();
+            for (Voice v : tts.getVoices()) if ("tr".equals(v.getLocale().getLanguage())) voices.add(v);
+            Collections.sort(voices, (a,b) -> a.getName().compareTo(b.getName()));
+            if (voices.isEmpty()) content.addView(text("Telefonda Türkçe ses bulunamadı.", 16, Color.WHITE, false));
+            for (Voice v : voices) {
+                String description = v.getName() + (v.isNetworkConnectionRequired() ? " (internet gerekli)" : " (çevrimdışı kullanılabilir)");
+                addCard((v.getName().equals(selectedVoiceName) ? "✓ " : "") + description,
+                    "Bu sesi seç ve dene. Sesin kadın/erkek niteliği telefondaki ses motoruna bağlıdır.", () -> {
+                        selectedVoiceName = v.getName();
+                        getPreferences(MODE_PRIVATE).edit().putString("selected_voice", selectedVoiceName).apply();
+                        applyVoice(); speak("Merhaba, ben " + assistantName + ". Bu benim sesim.");
+                    });
+            }
+        }
+        addCard("Ayarlar ekranına dön", "", this::showSettings);
+    }
     private void showNavigation() {
         page("Navigasyon");
         content.addView(text("Hedefini yaz, harita uygulamasında yol tarifini açalım.", 16, Color.LTGRAY, false));
@@ -258,6 +350,7 @@ public class MainActivity extends Activity {
         });
         addCard("⛽ Benzin istasyonları", "Haritada istasyon ara.", () -> openMapSearch("benzin istasyonu"));
         addCard("☕ Dinlenme tesisleri", "Haritada mola yeri ara.", () -> openMapSearch("dinlenme tesisi"));
+        addCard("🔁 Son rotaya dön", lastDestination.isEmpty() ? "Henüz rota yok." : lastDestination, () -> { if (!lastDestination.isEmpty()) openDirections(lastDestination); });
         addCard("🏛️ Gezilecek yerler", "Yakındaki turistik yerleri ara.", () -> openMapSearch("turistik yerler"));
         content.addView(text("Rota yönlendirmesini yüklü harita uygulaması yapar. Uygulama içi navigasyon henüz yok.", 13, Color.LTGRAY, false));
         addCard("Ana ekrana dön", "", this::showHome);
@@ -269,6 +362,12 @@ public class MainActivity extends Activity {
         addCard("⏸️ Duraklat", "Müziği durdur.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE));
         addCard("⏭️ Sonraki", "Sonraki şarkı.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT));
         addCard("⏮️ Önceki", "Önceki şarkı.", () -> mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS));
+        EditText musicQuery = new EditText(this);
+        musicQuery.setSingleLine(true); musicQuery.setHint("Şarkı veya sanatçı ara"); musicQuery.setTextColor(Color.WHITE);
+        content.addView(musicQuery);
+        addCard("🔎 YouTube Music ara", "Arama sonuçlarını müzik uygulamasında aç.", () -> { String q = musicQuery.getText().toString().trim(); if (!q.isEmpty()) searchMusic(q); else musicQuery.setError("Arama yaz"); });
+        addCard("🔊 Sesi yükselt", "", () -> adjustVolume(true));
+        addCard("🔉 Sesi kıs", "", () -> adjustVolume(false));
         content.addView(text("Müzik uygulaması komutları desteklemiyorsa çalışmayabilir. Şarkı arama henüz eklenmedi.", 13, Color.LTGRAY, false));
         addCard("Ana ekrana dön", "", this::showHome);
     }
@@ -298,6 +397,7 @@ public class MainActivity extends Activity {
         content.addView(text("Ses tercihi (cihazdaki Türkçe seslere bağlı)", 17, Color.WHITE, true));
         addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), "Kadın sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Kadın"); });
         addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), "Erkek sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Erkek"); });
+        addCard("🎤 Türkçe sesleri listele ve dene", "Telefondaki tüm Türkçe sesleri tek tek seç.", this::showVoicePicker);
         content.addView(text("Konuşma hızı: " + String.format(Locale.getDefault(), "%.2f", speechRate) + "x", 17, Color.WHITE, true));
         SeekBar speed = new SeekBar(this);
         speed.setMax(150);
