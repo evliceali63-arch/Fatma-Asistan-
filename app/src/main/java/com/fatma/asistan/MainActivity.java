@@ -34,6 +34,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.view.Gravity;
+import android.widget.GridLayout;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
 
 public class MainActivity extends Activity {
     private LinearLayout content;
@@ -63,9 +67,9 @@ public class MainActivity extends Activity {
         }
     };
     private static final int SPEECH_REQUEST = 100;
-    private static final int BG = Color.rgb(15, 19, 29);
-    private static final int PANEL = Color.rgb(31, 39, 55);
-    private static final int ACCENT = Color.rgb(49, 211, 170);
+    private static final int BG = Color.rgb(9, 9, 12);
+    private static final int PANEL = Color.rgb(23, 20, 23);
+    private static final int ACCENT = Color.rgb(255, 103, 29);
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -238,25 +242,95 @@ public class MainActivity extends Activity {
         content.addView(card, lp);
         if (action != null) { card.setClickable(true); card.setOnClickListener(v -> action.run()); }
     }
+    private void homeTile(LinearLayout row, String emoji, String title, String detail, Runnable action) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(5), dp(14), dp(5), dp(14));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{Color.rgb(34,23,21), Color.rgb(12,13,17)});
+        bg.setCornerRadius(dp(17)); bg.setStroke(dp(1), Color.rgb(67,48,42));
+        tile.setBackground(bg);
+        TextView symbol = text(emoji, 29, ACCENT, true);
+        symbol.setGravity(Gravity.CENTER); tile.addView(symbol);
+        TextView name = text(title, 15, Color.WHITE, true);
+        name.setGravity(Gravity.CENTER); tile.addView(name);
+        TextView desc = text(detail, 11, Color.LTGRAY, false);
+        desc.setGravity(Gravity.CENTER); tile.addView(desc);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(132), 1);
+        lp.setMargins(dp(3), dp(4), dp(3), dp(4));
+        row.addView(tile, lp);
+        tile.setOnClickListener(v -> action.run());
+    }
+    private void showBluetooth() {
+        page("Bluetooth");
+        content.addView(text("Şu anda telefonun Bluetooth ayarlarını açabiliriz. Güvenilir interkom seçimi ve otomatik etkinleşme henüz geliştirilmedi.", 16, Color.LTGRAY, false));
+        addCard("🔵 Bluetooth ayarlarını aç", "İnterkomunu telefonla eşleştir.", () -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+        addCard("Ana sayfa", "", this::showHome);
+    }
     private void showHome() {
-        page("Merhaba!");
-        content.addView(text("Ben " + assistantName + ".", 26, ACCENT, true));
-        content.addView(text("Kişisel sürüş asistanın geliştirme aşamasında.", 16, Color.LTGRAY, false));
-        batteryLabel = text("Telefon pili: " + (batteryPercent < 0 ? "ölçülüyor" : "%" + batteryPercent), 18, ACCENT, true);
-        content.addView(batteryLabel);
-        addCard("Asistan ayarları", "Asistanın ismini değiştir.", this::showSettings);
-        addCard("Bluetooth", "Telefonun Bluetooth ayarlarını aç.", () -> {
-            try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
-            catch (Exception e) { Toast.makeText(this, "Bluetooth ayarları açılamadı", Toast.LENGTH_SHORT).show(); }
+        batteryLabel = null;
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        GradientDrawable backdrop = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{Color.rgb(32,12,9), Color.rgb(8,8,12), Color.rgb(20,9,8)});
+        scroll.setBackground(backdrop);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(12), dp(22), dp(12), dp(24));
+        scroll.addView(content);
+        setContentView(scroll);
+
+        TextView emblem = text("☠", 78, ACCENT, true);
+        emblem.setGravity(Gravity.CENTER);
+        content.addView(emblem);
+        TextView heading = text(assistantName, 38, Color.WHITE, true);
+        heading.setGravity(Gravity.CENTER); content.addView(heading);
+        TextView sub = text("Sesli Asistan ve Güvenlik Sistemi", 14, Color.LTGRAY, false);
+        sub.setGravity(Gravity.CENTER); content.addView(sub);
+        batteryLabel = text("Telefon pili: " + (batteryPercent < 0 ? "ölçülüyor" : "%" + batteryPercent), 14, ACCENT, true);
+        batteryLabel.setGravity(Gravity.CENTER); content.addView(batteryLabel);
+
+        TextView mic = text("🎙  BENİ DİNLE", 23, Color.WHITE, true);
+        mic.setGravity(Gravity.CENTER);
+        mic.setPadding(dp(12), dp(24), dp(12), dp(24));
+        GradientDrawable micBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{Color.rgb(42,17,11), Color.rgb(19,17,19)});
+        micBg.setCornerRadius(dp(26)); micBg.setStroke(dp(2), ACCENT);
+        mic.setBackground(micBg);
+        LinearLayout.LayoutParams micLp = new LinearLayout.LayoutParams(-1, -2);
+        micLp.setMargins(dp(8), dp(28), dp(8), dp(18));
+        content.addView(mic, micLp);
+        mic.setOnClickListener(v -> listen());
+        TextView hint = text("Sesli komut için dokun • Otomatik dinleme henüz aktif değil", 12, Color.LTGRAY, false);
+        hint.setGravity(Gravity.CENTER); content.addView(hint);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL); content.addView(row1);
+        homeTile(row1, "📞", "Ara", "Arama ekranı", () -> openDialer(""));
+        homeTile(row1, "💬", "WhatsApp", "Uygulamayı aç", () -> {
+            Intent i = getPackageManager().getLaunchIntentForPackage("com.whatsapp");
+            if (i != null) startActivity(i); else Toast.makeText(this, "WhatsApp yüklü değil", Toast.LENGTH_SHORT).show();
         });
-        addCard("🎙️ Beni dinle", "Türkçe sesli komut vermek için dokun.", this::listen);
-        addCard("🔊 Sesimi dene", "Asistanın Türkçe konuşmasını dinle.", () -> speak("Merhaba, ben " + assistantName + ". Sana nasıl yardımcı olabilirim?"));
-        addCard("🧭 Navigasyon", "Hedef belirle, yol tarifi ve benzin istasyonu ara.", this::showNavigation);
-        addCard("🎵 Müzik kontrolü", "Oynat, durdur, sonraki ve önceki şarkı.", this::showMusic);
-        addCard("🚨 Acil durum", "112 arama ekranı ve konum seçenekleri.", this::showEmergency);
-        addCard("📜 Geçmiş", "Sesli komut ve rota kayıtları.", this::showHistory);
-        addCard("Kaza algılama", "Henüz aktif değil; acil durum sistemi olarak kullanmayın.", this::comingSoon);
-        content.addView(text("Sürüm 0.5 - Sesler, müzik arama, geçmiş ve acil durum", 13, Color.GRAY, false));
+        homeTile(row1, "🎵", "Müzik", "Oynat / Durdur", this::showMusic);
+        homeTile(row1, "🧭", "Navigasyon", "Rota oluştur", this::showNavigation);
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL); content.addView(row2);
+        homeTile(row2, "🏍", "Sürüş", "Geliştiriliyor", this::comingSoon);
+        homeTile(row2, "🛡", "Uyg. Kilidi", "Geliştiriliyor", this::comingSoon);
+        homeTile(row2, "🆘", "Acil Durum", "112 / Konum", this::showEmergency);
+        homeTile(row2, "⚙", "Ayarlar", "Kişiselleştir", this::showSettings);
+
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(-1, -2);
+        bottomLp.topMargin = dp(22); content.addView(bottom, bottomLp);
+        homeTile(bottom, "⌂", "Ana Sayfa", "", this::showHome);
+        homeTile(bottom, "🎙", "Komutlar", "", this::listen);
+        homeTile(bottom, "🎧", "Bluetooth", "", this::showBluetooth);
+        homeTile(bottom, "◷", "Geçmiş", "", this::showHistory);
+        content.addView(text("Fatma 0.6 • Önizleme tasarımına yakınlaştırılmış arayüz", 11, Color.GRAY, false));
     }
     private void launchMap(Uri uri) {
         try {
