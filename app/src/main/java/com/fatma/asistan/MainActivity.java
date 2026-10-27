@@ -107,13 +107,13 @@ public class MainActivity extends Activity {
         else if (phrase.contains("sonraki") || phrase.contains("şarkı değiştir")) { media(KeyEvent.KEYCODE_MEDIA_NEXT); say("Sonraki şarkı."); }
         else if (phrase.contains("önceki")) { media(KeyEvent.KEYCODE_MEDIA_PREVIOUS); say("Önceki şarkı."); }
         else if (phrase.contains("durdur") || phrase.contains("duraklat")) { media(KeyEvent.KEYCODE_MEDIA_PAUSE); say("Müziği duraklatıyorum."); }
-        else if (phrase.contains("müzik aç") || phrase.contains("müziği aç") || phrase.contains("devam et")) { media(KeyEvent.KEYCODE_MEDIA_PLAY); say("Müziği başlatıyorum."); }
-        else if (phrase.contains("şarkısını aç") || phrase.contains("şarkı ara")) {
-            String q = phrase.replace("şarkısını aç","").replace("şarkı ara","").replace("fatma","").trim();
+        else if (phrase.equals("müzik aç") || phrase.equals("müziği aç") || phrase.equals("devam et") || phrase.equals("müzik çal")) { media(KeyEvent.KEYCODE_MEDIA_PLAY); say("Müziği başlatıyorum."); }
+        else if (phrase.contains("şarkısını aç") || phrase.contains("şarkıyı aç") || phrase.contains("şarkı ara") || phrase.contains("şarkısını çal") || phrase.contains("müziğini aç") || phrase.contains("çal") || phrase.contains("aç")) {
+            String q = phrase.replace("şarkısını aç","").replace("şarkısını çal","").replace("şarkıyı aç","").replace("şarkı ara","").replace("müziğini aç","").replace("çal","").replace("aç","").replace("fatma","").replace("lütfen","").trim();
             if (q.isEmpty()) askMusic(); else searchMusic(q);
         }
-        else if (phrase.contains("yol tarifi") || phrase.contains("navigasyon") || phrase.contains("gitmek istiyorum")) {
-            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("fatma","").trim();
+        else if (phrase.contains("yol tarifi") || phrase.contains("navigasyon") || phrase.contains("gitmek istiyorum") || phrase.contains("götür") || phrase.contains("rota oluştur") || phrase.contains("yol göster")) {
+            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("götür","").replace("rota oluştur","").replace("yol göster","").replace("fatma","").replace("beni","").replace("lütfen","").replace("için","").trim();
             if (dest.isEmpty()) askDestination(); else navigate(dest);
         }
         else say("Bu komutu henüz bilmiyorum: " + phrase);
@@ -130,11 +130,11 @@ public class MainActivity extends Activity {
         catch (Exception e) { say("Bu işlemi açacak uygulama bulunamadı."); }
     }
     private void showLocation() {
-        Uri uri = Uri.parse("geo:0,0?q=My+Location");
+        Uri uri = Uri.parse("geo:0,0");
         Intent i = new Intent(Intent.ACTION_VIEW,uri);
         i.setPackage("com.google.android.apps.maps");
         try { startActivity(i); }
-        catch (Exception e) { open(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps"))); }
+        catch (Exception e) { open(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/@?api=1&map_action=map"))); }
     }
     private void navigate(String dest) {
         Uri uri = Uri.parse("google.navigation:q=" + Uri.encode(dest));
@@ -153,7 +153,10 @@ public class MainActivity extends Activity {
             }).setNegativeButton("Vazgeç",null).show();
     }
     private void searchMusic(String q) {
-        open(new Intent(Intent.ACTION_VIEW,Uri.parse("https://music.youtube.com/search?q="+Uri.encode(q))));
+        Intent music = new Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com/search?q="+Uri.encode(q)));
+        music.setPackage("com.google.android.apps.youtube.music");
+        try { startActivity(music); } catch (Exception e) { open(new Intent(Intent.ACTION_VIEW,Uri.parse("https://music.youtube.com/search?q="+Uri.encode(q)))); }
+        say("Şarkıyı YouTube Music üzerinde arıyorum. Otomatik oynatma henüz desteklenmiyor.");
     }
     private void askMusic() {
         EditText field = new EditText(this);
