@@ -79,10 +79,10 @@ public class MainActivity extends Activity {
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
         voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
         speechRate = getPreferences(MODE_PRIVATE).getFloat("speech_rate", 0.95f);
-        speechPitch = getPreferences(MODE_PRIVATE).getFloat("speech_pitch", 1.0f);
+        speechPitch = 1.0f;
         selectedVoiceName = getPreferences(MODE_PRIVATE).getString("selected_voice", "");
-        femaleVoiceName = getPreferences(MODE_PRIVATE).getString("female_voice", "");
-        maleVoiceName = getPreferences(MODE_PRIVATE).getString("male_voice", "");
+        femaleVoiceName = getPreferences(MODE_PRIVATE).getString("female_voice", "tr-TR-language");
+        maleVoiceName = getPreferences(MODE_PRIVATE).getString("male_voice", "tr-tr-x-ama-local");
         lastDestination = getPreferences(MODE_PRIVATE).getString("last_destination", "");
         batteryThreshold = getPreferences(MODE_PRIVATE).getInt("battery_threshold", 20);
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -102,7 +102,7 @@ public class MainActivity extends Activity {
         if (!ttsReady) return;
         Voice selected = null;
         String preferredName = voicePreference.equals("Kadın") ? femaleVoiceName : maleVoiceName;
-        if (preferredName.isEmpty()) preferredName = selectedVoiceName;
+        if (preferredName.isEmpty()) preferredName = voicePreference.equals("Kadın") ? "tr-TR-language" : "tr-tr-x-ama-local";
         if (!preferredName.isEmpty()) {
             for (Voice v : tts.getVoices() == null ? Collections.<Voice>emptySet() : tts.getVoices()) {
                 if (v.getName().equals(preferredName) && "tr".equals(v.getLocale().getLanguage())) { selected = v; break; }
