@@ -103,18 +103,20 @@ public class MainActivity extends Activity {
         ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
         if (results == null || results.isEmpty()) return;
         String phrase = results.get(0).toLowerCase(new Locale("tr","TR")).trim();
+        phrase = phrase.replaceFirst("^(hey\\s+)?fatma[,!:.]?\\s*", "").trim();
         if (phrase.contains("konum") || phrase.contains("neredeyim")) { say("Konumunu haritada açıyorum."); showLocation(); }
         else if (phrase.contains("sonraki") || phrase.contains("şarkı değiştir")) { media(KeyEvent.KEYCODE_MEDIA_NEXT); say("Sonraki şarkı."); }
         else if (phrase.contains("önceki")) { media(KeyEvent.KEYCODE_MEDIA_PREVIOUS); say("Önceki şarkı."); }
         else if (phrase.contains("durdur") || phrase.contains("duraklat")) { media(KeyEvent.KEYCODE_MEDIA_PAUSE); say("Müziği duraklatıyorum."); }
         else if (phrase.equals("müzik aç") || phrase.equals("müziği aç") || phrase.equals("devam et") || phrase.equals("müzik çal")) { media(KeyEvent.KEYCODE_MEDIA_PLAY); say("Müziği başlatıyorum."); }
-        else if (phrase.contains("şarkısını aç") || phrase.contains("şarkıyı aç") || phrase.contains("şarkı ara") || phrase.contains("şarkısını çal") || phrase.contains("müziğini aç") || phrase.contains(" çal") || phrase.contains("şarkı aç") || phrase.contains("müzik aç")) {
-            String q = phrase.replace("şarkısını aç","").replace("şarkısını çal","").replace("şarkıyı aç","").replace("şarkı ara","").replace("müziğini aç","").replace("çal","").replace("aç","").replace("fatma","").replace("lütfen","").trim();
-            if (q.isEmpty()) askMusic(); else searchMusic(q);
-        }
         else if (phrase.contains("yol tarifi") || phrase.contains("navigasyon") || phrase.contains("gitmek istiyorum") || phrase.contains("götür") || phrase.contains("rota oluştur") || phrase.contains("yol göster") || phrase.contains("haritayı aç")) {
-            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("götür","").replace("rota oluştur","").replace("yol göster","").replace("haritayı aç","").replace("fatma","").replace("beni","").replace("lütfen","").replace("için","").trim();
+            String dest = phrase.replace("yol tarifi","").replace("navigasyon","").replace("gitmek istiyorum","").replace("götür","").replace("rota oluştur","").replace("yol göster","").replace("haritayı aç","").replace("beni","").replace("lütfen","").replace("için","").trim();
             if (dest.isEmpty()) askDestination(); else navigate(dest);
+        }
+        else if (phrase.contains("şarkı ara") || phrase.contains("şarkısını") || phrase.contains("şarkıyı") || phrase.contains("müziğini") || phrase.matches(".*\\s+(aç|çal|oynat)[.!?]?$")) {
+            String q = phrase.replaceAll("(?i)\\b(şarkısını|şarkıyı|şarkı|müziğini|müzik|lütfen)\\b", " ")
+                .replaceAll("(?i)\\s+(aç|çal|oynat)[.!?]?$", "").trim();
+            if (q.isEmpty()) askMusic(); else searchMusic(q);
         }
         else say("Bu komutu henüz bilmiyorum: " + phrase);
     }
