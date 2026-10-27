@@ -1,6 +1,13 @@
 package com.fatma.asistan;
 
 import android.app.Activity;
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
+import java.util.Locale;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.text.SimpleDateFormat;
 import android.os.Bundle;
 import android.content.Intent;
 import android.provider.Settings;
@@ -17,6 +24,10 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private LinearLayout content;
     private String assistantName;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+    private String voicePreference = "Kadın";
+    private static final int SPEECH_REQUEST = 100;
     private static final int BG = Color.rgb(15, 19, 29);
     private static final int PANEL = Color.rgb(31, 39, 55);
     private static final int ACCENT = Color.rgb(49, 211, 170);
@@ -24,7 +35,74 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         assistantName = getPreferences(MODE_PRIVATE).getString("assistant_name", "Fatma");
+        voicePreference = getPreferences(MODE_PRIVATE).getString("voice_preference", "Kadın");
+        tts = new TextToSpeech(this, status -> {
+            ttsReady = status == TextToSpeech.SUCCESS;
+            if (ttsReady) {
+                int result = tts.setLanguage(new Locale("tr", "TR"));
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    ttsReady = false;
+                    runOnUiThread(() -> Toast.makeText(this, "Türkçe ses paketi bulunamadı", Toast.LENGTH_LONG).show());
+                } else { applyVoice(); }
+            }
+        });
         showHome();
+    }
+    private void applyVoice() {
+        if (!ttsReady) return;
+        Voice selected = null;
+        for (Voice v : tts.getVoices() == null ? java.util.Collections.<Voice>emptySet() : tts.getVoices()) {
+            if (!"tr".equals(v.getLocale().getLanguage())) continue;
+            String n = v.getName().toLowerCase(Locale.ROOT);
+            boolean male = n.contains("male") && !n.contains("female");
+            boolean female = n.contains("female");
+            if ((voicePreference.equals("Erkek") && male) || (voicePreference.equals("Kadın") && female)) { selected = v; break; }
+            if (selected == null) selected = v;
+        }
+        if (selected != null) tts.setVoice(selected);
+        tts.setSpeechRate(0.95f);
+    }
+    private void speak(String words) {
+        if (ttsReady) tts.speak(words, TextToSpeech.QUEUE_FLUSH, null, "fatma_reply");
+        else Toast.makeText(this, "Ses motoru henüz hazır değil", Toast.LENGTH_SHORT).show();
+    }
+    private void listen() {
+        try {
+            Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "tr-TR");
+            i.putExtra(RecognizerIntent.EXTRA_PROMPT, assistantName + " seni dinliyor");
+            startActivityForResult(i, SPEECH_REQUEST);
+        } catch (Exception e) {
+            Toast.makeText(this, "Telefonunda ses tanıma hizmeti bulunamadı", Toast.LENGTH_LONG).show();
+        }
+    }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SPEECH_REQUEST && resultCode == RESULT_OK && data != null) {
+            ArrayList<String> words = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (words != null && !words.isEmpty()) {
+                String phrase = words.get(0).toLowerCase(new Locale("tr", "TR"));
+                String reply;
+                if (phrase.contains("saat kaç") || phrase.contains("saati söyle")) {
+                    reply = "Saat " + new SimpleDateFormat("HH:mm", new Locale("tr", "TR")).format(Calendar.getInstance().getTime());
+                } else if (phrase.contains("adın ne") || phrase.contains("ismin ne")) {
+                    reply = "Benim adım " + assistantName;
+                } else if (phrase.contains("merhaba") || phrase.contains("selam")) {
+                    reply = "Merhaba! Ben " + assistantName + ". Sana nasıl yardımcı olabilirim?";
+                } else if (phrase.contains("nasılsın")) {
+                    reply = "İyiyim, teşekkür ederim. Sen nasılsın?";
+                } else {
+                    reply = "Seni duydum: " + words.get(0) + ". Bu komutu henüz öğrenmedim.";
+                }
+                Toast.makeText(this, reply, Toast.LENGTH_LONG).show();
+                speak(reply);
+            }
+        }
+    }
+    @Override protected void onDestroy() {
+        if (tts != null) { tts.stop(); tts.shutdown(); }
+        super.onDestroy();
     }
     private GradientDrawable shape(int color) {
         GradientDrawable d = new GradientDrawable();
@@ -72,10 +150,11 @@ public class MainActivity extends Activity {
             try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
             catch (Exception e) { Toast.makeText(this, "Bluetooth ayarları açılamadı", Toast.LENGTH_SHORT).show(); }
         });
-        addCard("Sesli komutlar", "Sonraki sürümde eklenecek.", this::comingSoon);
+        addCard("🎙️ Beni dinle", "Türkçe sesli komut vermek için dokun.", this::listen);
+        addCard("🔊 Sesimi dene", "Asistanın Türkçe konuşmasını dinle.", () -> speak("Merhaba, ben " + assistantName + ". Sana nasıl yardımcı olabilirim?"));
         addCard("Navigasyon ve sürüş", "Sonraki sürümde eklenecek.", this::comingSoon);
         addCard("Kaza algılama", "Henüz aktif değil; acil durum sistemi olarak kullanmayın.", this::comingSoon);
-        content.addView(text("Sürüm 0.1 - İlk test uygulaması", 13, Color.GRAY, false));
+        content.addView(text("Sürüm 0.2 - Sesli test uygulaması", 13, Color.GRAY, false));
     }
     private void comingSoon() { Toast.makeText(this, "Bu özellik henüz geliştirilmedi", Toast.LENGTH_SHORT).show(); }
     private void showSettings() {
@@ -100,7 +179,17 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Kaydedildi", Toast.LENGTH_SHORT).show();
             showHome();
         });
+        content.addView(text("Ses tercihi (cihazdaki Türkçe seslere bağlı)", 17, Color.WHITE, true));
+        addCard("Kadın sesi" + (voicePreference.equals("Kadın") ? " ✓" : ""), "Kadın sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Kadın"); });
+        addCard("Erkek sesi" + (voicePreference.equals("Erkek") ? " ✓" : ""), "Erkek sesi varsa kullan; yoksa varsayılan Türkçe ses.", () -> { setVoicePreference("Erkek"); });
         addCard("Ana ekrana dön", "", this::showHome);
+    }
+    private void setVoicePreference(String preference) {
+        voicePreference = preference;
+        getPreferences(MODE_PRIVATE).edit().putString("voice_preference", preference).apply();
+        applyVoice();
+        showSettings();
+        speak("Merhaba, ben " + assistantName);
     }
     @Override public void onBackPressed() { showHome(); }
 }
