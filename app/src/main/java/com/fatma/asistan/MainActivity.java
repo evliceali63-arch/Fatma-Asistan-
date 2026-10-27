@@ -131,16 +131,32 @@ public class MainActivity extends Activity {
             if (words != null && !words.isEmpty()) {
                 String phrase = words.get(0).toLowerCase(new Locale("tr", "TR"));
                 String reply;
-                if (phrase.contains("benzin istasyonu") || phrase.contains("akaryakıt")) {
+                if (phrase.contains("benzin") || phrase.contains("akaryakıt") || phrase.contains("petrol istasyonu")) {
                     openMapSearch("benzin istasyonu"); reply = "Yakındaki benzin istasyonlarını haritada açıyorum.";
-                } else if (phrase.contains("dinlenme tesisi") || phrase.contains("mola yeri")) {
+                } else if (phrase.contains("dinlenme") || phrase.contains("mola yeri")) {
                     openMapSearch("dinlenme tesisi"); reply = "Dinlenme tesislerini haritada arıyorum.";
-                } else if (phrase.contains("navigasyon aç") || phrase.contains("haritayı aç")) {
-                    openMapSearch("yakınımdaki yerler"); reply = "Haritayı açıyorum.";
-                } else if (phrase.contains("yol tarifi") || phrase.contains("rota oluştur") || phrase.contains("navigasyon başlat")) {
-                    String destination = phrase.replace("fatma", "").replace("zilli", "").replace("bana", "").replace("yol tarifi", "").replace("rota oluştur", "").replace("navigasyon başlat", "").replace("aç", "").replace("ver", "").trim();
-                    if (destination.isEmpty()) { reply = "Hedef belirtmelisin. Örneğin Antalya'ya yol tarifi aç."; }
-                    else { openDirections(destination); reply = destination + " için yol tarifi açıyorum."; }
+                } else if (phrase.contains("gezilecek yer") || phrase.contains("turistik yer")) {
+                    openMapSearch("turistik yerler"); reply = "Gezilecek yerleri haritada arıyorum.";
+                } else if (phrase.contains("devam edelim") && !lastDestination.isEmpty()) {
+                    openDirections(lastDestination); reply = "Son rotanı açıyorum: " + lastDestination;
+                } else if (phrase.contains("yol tarifi") || phrase.contains("rota") || phrase.contains("navigasyon") || phrase.contains("götür") || phrase.contains("gitmek istiyorum") || phrase.contains("harita aç") || phrase.contains("haritayı aç")) {
+                    String destination = phrase.replace(assistantName.toLowerCase(new Locale("tr","TR")), "")
+                        .replace("fatma", "").replace("zilli", "").replace("bana", "")
+                        .replace("yol tarifi", "").replace("rota oluştur", "").replace("rota aç", "")
+                        .replace("navigasyon başlat", "").replace("navigasyon aç", "")
+                        .replace("haritayı aç", "").replace("harita aç", "")
+                        .replace("götür", "").replace("gitmek istiyorum", "")
+                        .replace("rotayı", "").replace("rota", "").replace("navigasyon", "")
+                        .replace("başlat", "").replace("aç", "").replace("ver", "")
+                        .replace("için", "").replace("lütfen", "").trim();
+                    destination = destination.replaceAll("(?iu)(ya|ye|a|e)$", "").trim();
+                    if (destination.isEmpty()) {
+                        showNavigation();
+                        reply = "Navigasyon ekranını açtım. Hedef söyleyebilirsin: Antalya'ya götür.";
+                    } else {
+                        openDirections(destination);
+                        reply = destination + " için yol tarifi açıyorum.";
+                    }
                 } else if (phrase.contains("sonraki şarkı") || phrase.contains("şarkıyı geç") || phrase.contains("sonraki müzik")) {
                     mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); reply = "Sonraki şarkıya geçiyorum.";
                 } else if (phrase.contains("önceki şarkı") || phrase.contains("önceki müzik")) {
